@@ -551,6 +551,198 @@
     to { opacity: 1; transform: translateX(0); }
   }
   .row-animate { animation: rowIn 0.3s ease; }
+
+  /* ════════════════════════════════════════════════
+     MOBILE RESPONSIVE — max-width: 768px
+     Desktop layout unchanged above this breakpoint
+  ════════════════════════════════════════════════ */
+  @media (max-width: 768px) {
+
+    /* ── APP PADDING ── */
+    .app { padding: 8px; }
+
+    /* ── HEADER ── */
+    .header-row1 {
+      padding: 8px 12px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .header-left { gap: 8px; }
+    .logo { font-size: 16px; letter-spacing: 2px; }
+    .version-badge { font-size: 9px; padding: 2px 6px; }
+
+    /* Hide less critical header items on mobile */
+    .header-divider { display: none; }
+    .header-control-label { display: none; }
+
+    /* Compact toggle labels */
+    .toggle-wrap span { display: none; }
+
+    /* Buttons smaller */
+    .hdr-btn { font-size: 10px; padding: 4px 8px; }
+
+    /* Clock smaller */
+    .clock { font-size: 11px; letter-spacing: 1px; }
+    .market-status { font-size: 10px; }
+
+    /* Market pulse row wraps */
+    .header-row2 { padding: 5px 12px; gap: 6px; flex-wrap: wrap; }
+    .mp-chip { font-size: 9px; padding: 2px 5px; }
+
+    /* ── PHASES BAR → 2x2 grid on mobile ── */
+    .phases-bar {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+    .phase { padding: 8px 10px; }
+    .phase-time { font-size: 10px; }
+    .phase-label { font-size: 11px; }
+    .phase-desc { display: none; }
+
+    /* ── STATS BAR → 2 columns + scroll ── */
+    .stats-bar {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+    .stat-card { padding: 10px 12px; }
+    .stat-label { font-size: 9px; }
+    .stat-value { font-size: 18px; }
+
+    /* ── MAIN GRID → single column ── */
+    .main-grid {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    /* ── SCANNER CONTROL PANEL HEADER ── */
+    .panel-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 10px 12px;
+    }
+    .panel-header > div:last-child {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      width: 100%;
+    }
+
+    /* Monitor mode select + buttons full width feel */
+    #monitorMode { font-size: 10px; padding: 6px 6px; flex: 1; min-width: 80px; }
+    #scanBtn, #monitorBtn { flex: 1; font-size: 11px; padding: 8px 10px; }
+
+    /* ── TICKER INPUT AREA ── */
+    .panel-body { padding: 10px 12px; }
+    .panel-body > div:first-child { flex-direction: column; gap: 8px; }
+
+    /* ── MONITOR ROW ── */
+    .monitor-row { flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 12px; }
+    .monitor-status { font-size: 10px; }
+    #monitorNextScan { font-size: 9px; }
+
+    /* ── ALERTS TABLE → card layout on mobile ── */
+    .alerts-scroll { max-height: none; overflow-y: visible; }
+    .alerts-table thead { display: none; } /* hide column headers */
+    .alerts-table, .alerts-table tbody,
+    .alerts-table tr, .alerts-table td { display: block; width: 100%; }
+
+    .alerts-table tr {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      margin-bottom: 8px;
+      padding: 10px 12px;
+      position: relative;
+    }
+    .alerts-table tr:hover td { background: transparent; }
+    .alerts-table td {
+      padding: 3px 0;
+      border-bottom: none;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    /* Hide rank, time, sector, signals columns on mobile — too cramped */
+    .alerts-table td:nth-child(1),
+    .alerts-table td:nth-child(2),
+    .alerts-table td:nth-child(6),
+    .alerts-table td:nth-child(7) { display: none; }
+
+    /* Ticker row — make it prominent */
+    .alerts-table td:nth-child(3) {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 1px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+      margin-bottom: 4px;
+    }
+
+    /* Grade + Score on same visual row */
+    .alerts-table td:nth-child(4),
+    .alerts-table td:nth-child(5) { display: inline-flex; width: auto; margin-right: 10px; }
+
+    /* Entry levels — add labels via pseudo */
+    .alerts-table td:nth-child(9)::before  { content: 'Price: ';  color: var(--text-dim); font-size: 10px; }
+    .alerts-table td:nth-child(10)::before { content: 'Entry: '; color: var(--text-dim); font-size: 10px; }
+    .alerts-table td:nth-child(11)::before { content: 'TP1: ';   color: var(--text-dim); font-size: 10px; }
+    .alerts-table td:nth-child(12)::before { content: 'TP2: ';   color: var(--text-dim); font-size: 10px; }
+    .alerts-table td:nth-child(13)::before { content: 'Stop: ';  color: var(--text-dim); font-size: 10px; }
+    .alerts-table td:nth-child(14)::before { content: 'R:R ';    color: var(--text-dim); font-size: 10px; }
+
+    /* Status badge full width */
+    .alerts-table td:nth-child(8) {
+      padding: 4px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 4px;
+    }
+
+    /* ── TABS ── */
+    .tab-btn { padding: 8px 10px; font-size: 11px; letter-spacing: 0.5px; }
+
+    /* ── STOCK ANALYZER ── */
+    .score-big-num { font-size: 40px; }
+
+    /* ── DROPDOWNS full screen on mobile ── */
+    .hdr-dropdown {
+      position: fixed;
+      top: auto;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      border-radius: 12px 12px 0 0;
+      border-top: 2px solid var(--cyan);
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    /* ── TIME WARNING ── */
+    .time-warning { font-size: 10px; padding: 6px 10px; }
+
+    /* ── SMART MODE STRIP ── */
+    #smartModeStrip { font-size: 9px; padding: 5px 10px; }
+
+    /* ── BUTTONS touch-friendly minimum size ── */
+    .btn { min-height: 38px; }
+    .btn-full { padding: 12px; font-size: 13px; }
+
+    /* ── INPUTS larger touch targets ── */
+    input[type="text"], input[type="number"], select {
+      font-size: 14px; /* prevent iOS zoom */
+      padding: 10px 10px;
+    }
+  }
+
+  /* ── VERY SMALL PHONES (< 380px) ── */
+  @media (max-width: 380px) {
+    .logo { font-size: 13px; }
+    .hdr-btn { font-size: 9px; padding: 3px 6px; }
+    .phases-bar { grid-template-columns: 1fr 1fr; }
+    .stats-bar { grid-template-columns: 1fr 1fr; }
+  }
 </style>
 </head>
 <body>
