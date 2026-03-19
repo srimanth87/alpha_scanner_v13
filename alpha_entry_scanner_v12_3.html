@@ -1038,10 +1038,13 @@ let YH_CRUMB_FETCHING = false;
 // Proxy definitions — ordered best to worst by default
 // Some proxies handle Yahoo auth better than others
 const PROXY_FNS = [
+  // ▼ Cloudflare Worker — primary, works from any domain
+  url => `https://yahoo-proxy.srimanthgada87.workers.dev?url=${encodeURIComponent(url)}`,
+  // fallbacks
   url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
   url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
   url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-  url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,  // alt format
+  url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
   url => `https://thingproxy.freeboard.io/fetch/${url}`,
 ];
 
