@@ -1201,26 +1201,42 @@ function updateTickerCount() {
 }
 
 // ════════════════════════════════════════════════
-// CORS PROXY HELPER — tries multiple proxies for GitHub Pages compatibility
+// CLOUDFLARE WORKER PROXY
 // ════════════════════════════════════════════════
+// ▶ SETUP (one time):
+//   1. Go to https://workers.cloudflare.com (free, no card)
+//   2. Create Worker → paste yahoo-proxy-worker.js → Save & Deploy
+//   3. Copy your worker URL and paste it below as WORKER_URL
+// ════════════════════════════════════════════════
+
+// ▼▼▼ PASTE YOUR WORKER URL HERE ▼▼▼
+const WORKER_URL = 'https://yahoo-proxy.srimanthgada87.workers.dev';
+// ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
 async function proxyFetch(url) {
-  const proxies = [
-    // Try query1 direct first (no proxy, sometimes works)
+  // Primary: Cloudflare Worker — reliable from any domain, no rate limits
+  if (WORKER_URL && !WORKER_URL.includes('YOUR-WORKER')) {
+    try {
+      const res = await fetch(`${WORKER_URL}?url=${encodeURIComponent(url)}`, {
+        signal: AbortSignal.timeout(10000)
+      });
+      if (res && res.ok) return res;
+    } catch(e) { /* fall through to backup */ }
+  }
+
+  // Backup chain — used only if worker URL not configured yet
+  const backups = [
     () => fetch(url.replace('query2.finance.yahoo.com','query1.finance.yahoo.com'), {signal:AbortSignal.timeout(5000)}),
-    // allorigins — most reliable for github.io
     () => fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, {signal:AbortSignal.timeout(8000)}),
-    // corsproxy fallback
     () => fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, {signal:AbortSignal.timeout(8000)}),
-    // codetabs fallback
-    () => fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, {signal:AbortSignal.timeout(8000)}),
   ];
-  for (const attempt of proxies) {
+  for (const attempt of backups) {
     try {
       const res = await attempt();
       if (res && res.ok) return res;
-    } catch(e) { /* try next proxy */ }
+    } catch(e) {}
   }
-  throw new Error('All proxies failed — check network or proxy availability');
+  throw new Error('All proxies failed — set your Cloudflare Worker URL in WORKER_URL');
 }
 
 // ════════════════════════════════════════════════
