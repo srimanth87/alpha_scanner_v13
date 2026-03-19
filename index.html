@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BreakoutHQ — Alpha Entry Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Rajdhani:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #060a0f;
+    --bg2:      #0b1017;
+    --bg3:      #0f1822;
+    --border:   #1a2840;
+    --border2:  #243858;
+    --cyan:     #00d4ff;
+    --green:    #00ff88;
+    --gold:     #ffd060;
+    --orange:   #ff8c00;
+    --purple:   #b060ff;
+    --red:      #ff4060;
+    --text:     #d8e8f8;
+    --dim:      #4a6888;
+    --dimmer:   #253548;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── GRID BACKGROUND ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── SCAN LINE EFFECT ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 0 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .dot-cluster { display:flex; gap:6px; align-items:center; }
+  .dot { width:10px; height:10px; border-radius:50%; }
+  .dot-r { background:#ff5f57; }
+  .dot-y { background:#febc2e; }
+  .dot-g { background:#28c840; }
+
+  .topbar-id {
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .live-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: blink 2s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .market-time { font-size:12px; color:var(--cyan); letter-spacing:2px; font-weight:600; }
+  .market-status-lbl { font-size:10px; color:var(--dim); letter-spacing:1px; }
+
+  /* ── HERO ── */
+  .hero {
+    padding: 64px 0 52px;
+    text-align: center;
+    position: relative;
+  }
+  .hero-eyebrow {
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--cyan);
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.1s forwards;
+  }
+  .hero-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(42px, 7vw, 80px);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -1px;
+    text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 6px;
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.2s forwards;
+  }
+  .hero-title span { color: var(--cyan); }
+  .hero-subtitle {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: clamp(14px, 2.5vw, 22px);
+    font-weight: 500;
+    color: var(--dim);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.3s forwards;
+  }
+  .hero-tagline {
+    font-size: 12px;
+    color: var(--dim);
+    letter-spacing: 1px;
+    line-height: 1.7;
+    max-width: 560px;
+    margin: 0 auto 40px;
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.4s forwards;
+  }
+
+  /* score chip row */
+  .score-chips {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 0;
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.5s forwards;
+  }
+  .score-chip {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    padding: 4px 12px;
+    border: 1px solid var(--border2);
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+  .score-chip.hl { border-color: var(--cyan); color: var(--cyan); background: rgba(0,212,255,0.06); }
+
+  /* ── DIVIDER ── */
+  .section-divider {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 48px 0 36px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.6s forwards;
+  }
+  .section-divider-line { flex:1; height:1px; background: var(--border); }
+  .section-divider-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--dim);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* ── SCANNER CARDS ── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+  @media(max-width: 800px) { .cards { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    opacity: 0;
+    animation: fadeUp 0.5s ease forwards;
+  }
+  .card:nth-child(1) { animation-delay: 0.7s; }
+  .card:nth-child(2) { animation-delay: 0.85s; }
+  .card:nth-child(3) { animation-delay: 1.0s; }
+
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  }
+  .card.v-cyan:hover  { border-color: var(--cyan);   box-shadow: 0 16px 48px rgba(0,212,255,0.12); }
+  .card.v-purple:hover{ border-color: var(--purple);  box-shadow: 0 16px 48px rgba(176,96,255,0.12); }
+  .card.v-orange:hover{ border-color: var(--orange);  box-shadow: 0 16px 48px rgba(255,140,0,0.12); }
+
+  /* accent bar top */
+  .card-accent {
+    height: 3px;
+    width: 100%;
+  }
+  .v-cyan  .card-accent { background: linear-gradient(90deg, var(--cyan), transparent); }
+  .v-purple .card-accent { background: linear-gradient(90deg, var(--purple), transparent); }
+  .v-orange .card-accent { background: linear-gradient(90deg, var(--orange), transparent); }
+
+  /* big version number watermark */
+  .card-watermark {
+    position: absolute;
+    bottom: -10px;
+    right: -8px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 88px;
+    font-weight: 800;
+    line-height: 1;
+    opacity: 0.04;
+    letter-spacing: -4px;
+    pointer-events: none;
+    user-select: none;
+  }
+  .v-cyan   .card-watermark { color: var(--cyan); }
+  .v-purple .card-watermark { color: var(--purple); }
+  .v-orange .card-watermark { color: var(--orange); }
+
+  .card-body { padding: 22px 22px 20px; }
+
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .card-version {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border: 1px solid;
+  }
+  .v-cyan   .card-version { color: var(--cyan);   border-color: var(--cyan);   background: rgba(0,212,255,0.08); }
+  .v-purple .card-version { color: var(--purple);  border-color: var(--purple); background: rgba(176,96,255,0.08); }
+  .v-orange .card-version { color: var(--orange);  border-color: var(--orange); background: rgba(255,140,0,0.08); }
+
+  .card-status {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    padding: 3px 8px;
+    border: 1px solid var(--border2);
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+  .card-status.active {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(0,255,136,0.06);
+  }
+
+  .card-name {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 4px;
+    line-height: 1.1;
+  }
+  .card-codename {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .card-desc {
+    font-size: 11px;
+    color: var(--dim);
+    line-height: 1.75;
+    margin-bottom: 18px;
+    min-height: 60px;
+  }
+
+  /* feature tags */
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  .tag {
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 3px 8px;
+    border: 1px solid var(--border2);
+    color: var(--dimmer);
+    text-transform: uppercase;
+  }
+  .v-cyan   .tag.hl { border-color: rgba(0,212,255,0.3); color: var(--cyan); background: rgba(0,212,255,0.05); }
+  .v-purple .tag.hl { border-color: rgba(176,96,255,0.3); color: var(--purple); background: rgba(176,96,255,0.05); }
+  .v-orange .tag.hl { border-color: rgba(255,140,0,0.3); color: var(--orange); background: rgba(255,140,0,0.05); }
+
+  /* score display */
+  .card-score-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .score-block {
+    flex: 1;
+    padding: 8px 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+  .score-block-val {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .score-block-lbl { font-size: 8px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+  /* launch button */
+  .card-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 16px;
+    border: 1px solid;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  .v-cyan   .card-btn { border-color: var(--cyan);   color: var(--cyan);   background: rgba(0,212,255,0.06); }
+  .v-purple .card-btn { border-color: var(--purple);  color: var(--purple); background: rgba(176,96,255,0.06); }
+  .v-orange .card-btn { border-color: var(--orange);  color: var(--orange); background: rgba(255,140,0,0.06); }
+  .v-cyan   .card-btn:hover { background: var(--cyan);   color: var(--bg); }
+  .v-purple .card-btn:hover { background: var(--purple); color: var(--bg); }
+  .v-orange .card-btn:hover { background: var(--orange); color: var(--bg); }
+
+  .arrow { font-size: 16px; transition: transform 0.2s; }
+  .card:hover .arrow { transform: translateX(4px); }
+
+  /* ── STATS ROW ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 48px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 1.1s forwards;
+  }
+  @media(max-width:600px) { .stats-row { grid-template-columns: repeat(2,1fr); } }
+  .stat-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 16px 18px;
+  }
+  .stat-box-val {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--cyan);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stat-box-lbl { font-size: 10px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
+
+  /* ── SCORING LEGEND ── */
+  .legend {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 24px 28px;
+    margin-bottom: 48px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 1.2s forwards;
+  }
+  .legend-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .legend-grades {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  @media(max-width:600px) { .legend-grades { grid-template-columns: repeat(2,1fr); } }
+  .grade-box {
+    padding: 12px 14px;
+    border: 1px solid;
+    text-align: center;
+  }
+  .grade-box-grade {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .grade-box-range { font-size: 10px; letter-spacing: 1px; margin-bottom: 4px; }
+  .grade-box-desc { font-size: 9px; color: var(--dim); letter-spacing: 0.5px; }
+
+  .g-aplus { border-color: rgba(0,255,136,0.3); background: rgba(0,255,136,0.04); }
+  .g-aplus .grade-box-grade { color: #00ff88; }
+  .g-aplus .grade-box-range { color: #00ff88; }
+  .g-a     { border-color: rgba(0,212,255,0.3); background: rgba(0,212,255,0.04); }
+  .g-a     .grade-box-grade { color: var(--cyan); }
+  .g-a     .grade-box-range { color: var(--cyan); }
+  .g-b     { border-color: rgba(255,208,96,0.3); background: rgba(255,208,96,0.04); }
+  .g-b     .grade-box-grade { color: var(--gold); }
+  .g-b     .grade-box-range { color: var(--gold); }
+  .g-w     { border-color: rgba(255,140,0,0.3); background: rgba(255,140,0,0.04); }
+  .g-w     .grade-box-grade { color: var(--orange); }
+  .g-w     .grade-box-range { color: var(--orange); }
+
+  .legend-signals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .sig-pill {
+    font-size: 10px;
+    padding: 4px 12px;
+    border: 1px solid var(--border2);
+    color: var(--dim);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .sig-pill-pts {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gold);
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    border-top: 1px solid var(--border);
+    padding-top: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 1.3s forwards;
+  }
+  .footer-left { font-size: 10px; color: var(--dim); letter-spacing: 1px; line-height: 1.8; }
+  .footer-left span { color: var(--cyan); }
+  .footer-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .footer-badge {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    padding: 4px 10px;
+    border: 1px solid var(--border2);
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity:0; transform: translateY(16px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+
+  /* ── TICKER TAPE ── */
+  .tape-wrap {
+    overflow: hidden;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 8px 0;
+    margin-bottom: 48px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 0.65s forwards;
+  }
+  .tape {
+    display: flex;
+    gap: 0;
+    animation: tape 30s linear infinite;
+    white-space: nowrap;
+  }
+  .tape-item {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    padding: 0 24px;
+    color: var(--dim);
+    border-right: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .tape-item .ticker { color: var(--cyan); font-weight: 600; }
+  .tape-item .up     { color: var(--green); }
+  .tape-item .down   { color: var(--red); }
+  @keyframes tape { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="dot-cluster">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+      </div>
+      <div class="topbar-id">BREAKOUTHQ · NDX100 · ALPHA SCANNER SUITE</div>
+    </div>
+    <div class="topbar-right">
+      <div class="market-status-lbl" id="mktLbl">CHECKING...</div>
+      <div class="live-dot"></div>
+      <div class="market-time" id="mktTime">--:--:-- --</div>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-eyebrow">BreakoutHQ · Proprietary Trading Suite</div>
+    <div class="hero-title"><span>Alpha</span> Entry<br>Scanner</div>
+    <div class="hero-subtitle">NDX100 · Day Trading · Real-Time</div>
+    <div class="hero-tagline">
+      Multi-model scanner suite built for NDX100 day trading. Dual scoring engines,
+      live Yahoo Finance data, Telegram alerts, smart auto-monitor with phase-aware
+      gapper rotation.
+    </div>
+    <div class="score-chips">
+      <div class="score-chip hl">EMA +2</div>
+      <div class="score-chip hl">SMA +2</div>
+      <div class="score-chip hl">RSI +2</div>
+      <div class="score-chip hl">VOL +3</div>
+      <div class="score-chip hl">BREAKOUT +3</div>
+      <div class="score-chip hl">LUXALGO +4</div>
+      <div class="score-chip">16 PTS MAX</div>
+    </div>
+  </div>
+
+  <!-- TICKER TAPE -->
+  <div class="tape-wrap">
+    <div class="tape" id="tape"></div>
+  </div>
+
+  <!-- SECTION DIVIDER -->
+  <div class="section-divider">
+    <div class="section-divider-line"></div>
+    <div class="section-divider-label">▸ Choose your scanner</div>
+    <div class="section-divider-line"></div>
+  </div>
+
+  <!-- SCANNER CARDS -->
+  <div class="cards">
+
+    <!-- v4.x -->
+    <a class="card v-cyan" href="AlphaEntryScanner_v4_6.html" target="_blank">
+      <div class="card-accent"></div>
+      <div class="card-watermark">V4</div>
+      <div class="card-body">
+        <div class="card-top">
+          <div class="card-version">v4.x</div>
+          <div class="card-status">STABLE</div>
+        </div>
+        <div class="card-name">Classic<br>Scanner</div>
+        <div class="card-codename">Codename: BASELINE</div>
+        <div class="card-desc">
+          Lean, fast single-model scanner. Clean layout with EMA/SMA/RSI/Volume scoring.
+          108-symbol NDX100 watchlist with Telegram integration and manual scan mode.
+        </div>
+        <div class="card-tags">
+          <div class="tag hl">Telegram Alerts</div>
+          <div class="tag hl">108 Symbols</div>
+          <div class="tag">Manual Scan</div>
+          <div class="tag">Pre-market Gap</div>
+          <div class="tag">Top Gappers</div>
+        </div>
+        <div class="card-score-row">
+          <div class="score-block">
+            <div class="score-block-val" style="color:var(--cyan)">16</div>
+            <div class="score-block-lbl">Max Score</div>
+          </div>
+          <div class="score-block">
+            <div class="score-block-val" style="color:#00ff88">≥14</div>
+            <div class="score-block-lbl">A+ Gate</div>
+          </div>
+          <div class="score-block">
+            <div class="score-block-val" style="color:var(--gold)">±0.8%</div>
+            <div class="score-block-lbl">Gap Thresh</div>
+          </div>
+        </div>
+        <div class="card-btn">Launch v4.x <span class="arrow">→</span></div>
+      </div>
+    </a>
+
+    <!-- v12.x -->
+    <a class="card v-purple" href="AlphaEntryScanner_v12_3.html" target="_blank">
+      <div class="card-accent"></div>
+      <div class="card-watermark">V12</div>
+      <div class="card-body">
+        <div class="card-top">
+          <div class="card-version">v12.x</div>
+          <div class="card-status active">ACTIVE</div>
+        </div>
+        <div class="card-name">Safety<br>Edition</div>
+        <div class="card-codename">Codename: GUARDIAN</div>
+        <div class="card-desc">
+          Production hardened with full safety features. Parallel scanning engine,
+          version-stamped Telegram alerts (⭐), cooldown logic, and market pulse GO/NO-GO gate.
+        </div>
+        <div class="card-tags">
+          <div class="tag hl">Safety Gates</div>
+          <div class="tag hl">Parallel Scan</div>
+          <div class="tag hl">GO/NO-GO</div>
+          <div class="tag">Cooldown Logic</div>
+          <div class="tag">⭐ Stamped Alerts</div>
+        </div>
+        <div class="card-score-row">
+          <div class="score-block">
+            <div class="score-block-val" style="color:var(--purple)">16</div>
+            <div class="score-block-lbl">Max Score</div>
+          </div>
+          <div class="score-block">
+            <div class="score-block-val" style="color:#00ff88">≥14</div>
+            <div class="score-block-lbl">A+ Gate</div>
+          </div>
+          <div class="score-block">
+            <div class="score-block-val" style="color:var(--gold)">45m</div>
+            <div class="score-block-lbl">Cooldown</div>
+          </div>
+        </div>
+        <div class="card-btn">Launch v12.x <span class="arrow">→</span></div>
+      </div>
+    </a>
+
+    <!-- v13 -->
+    <a class="card v-orange" href="AlphaEntryScanner_v13_24.html" target="_blank">
+      <div class="card-accent"></div>
+      <div class="card-watermark">V13</div>
+      <div class="card-body">
+        <div class="card-top">
+          <div class="card-version">v13.23</div>
+          <div class="card-status active">LATEST</div>
+        </div>
+        <div class="card-name">Smart<br>Monitor</div>
+        <div class="card-codename">Codename: APEX</div>
+        <div class="card-desc">
+          Phase-aware dual-mode auto monitor. Smart engine switches between gapper focus
+          and full NDX100 scan based on time of day. Stock Analyzer, entry status
+          tracking, and rank-sorted alerts.
+        </div>
+        <div class="card-tags">
+          <div class="tag hl">⚡ Smart Monitor</div>
+          <div class="tag hl">Phase-Aware</div>
+          <div class="tag hl">Stock Analyzer</div>
+          <div class="tag">103 Tickers</div>
+          <div class="tag">Rank Sort</div>
+          <div class="tag">Entry Status</div>
+        </div>
+        <div class="card-score-row">
+          <div class="score-block">
+            <div class="score-block-val" style="color:var(--orange)">16</div>
+            <div class="score-block-lbl">Max Score</div>
+          </div>
+          <div class="score-block">
+            <div class="score-block-val" style="color:#00ff88">≥14</div>
+            <div class="score-block-lbl">A+ Gate</div>
+          </div>
+          <div class="score-block">
+            <div class="score-block-val" style="color:var(--gold)">3x</div>
+            <div class="score-block-lbl">Proxy Chain</div>
+          </div>
+        </div>
+        <div class="card-btn">Launch v13.23 <span class="arrow">→</span></div>
+      </div>
+    </a>
+
+  </div>
+
+  <!-- STATS ROW -->
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-box-val">103</div>
+      <div class="stat-box-lbl">NDX100 Tickers</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-val" style="color:var(--green)">16</div>
+      <div class="stat-box-lbl">Max Score Points</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-val" style="color:var(--gold)">45m</div>
+      <div class="stat-box-lbl">Alert Cooldown</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-box-val" style="color:var(--orange)">3</div>
+      <div class="stat-box-lbl">Scanner Versions</div>
+    </div>
+  </div>
+
+  <!-- SCORING LEGEND -->
+  <div class="legend">
+    <div class="legend-title">▸ Scoring Model — All Versions</div>
+    <div class="legend-grades">
+      <div class="grade-box g-aplus">
+        <div class="grade-box-grade">A+</div>
+        <div class="grade-box-range">Score ≥ 14 + PA</div>
+        <div class="grade-box-desc">Strong buy · Full size · High conviction</div>
+      </div>
+      <div class="grade-box g-a">
+        <div class="grade-box-grade">A</div>
+        <div class="grade-box-range">Score ≥ 11 + PA</div>
+        <div class="grade-box-desc">Buy · Normal size · PA confirmed</div>
+      </div>
+      <div class="grade-box g-b">
+        <div class="grade-box-grade">B</div>
+        <div class="grade-box-range">Score ≥ 8</div>
+        <div class="grade-box-desc">Wait · Structure good · No PA yet</div>
+      </div>
+      <div class="grade-box g-w">
+        <div class="grade-box-grade">W</div>
+        <div class="grade-box-range">Score ≥ 6</div>
+        <div class="grade-box-desc">Watching · Early setup · Keep on radar</div>
+      </div>
+    </div>
+    <div class="legend-signals">
+      <div class="sig-pill"><span class="sig-pill-pts">+2</span> Price > 20 EMA</div>
+      <div class="sig-pill"><span class="sig-pill-pts">+2</span> Price > 50 SMA</div>
+      <div class="sig-pill"><span class="sig-pill-pts">+2</span> RSI 50–65</div>
+      <div class="sig-pill"><span class="sig-pill-pts">+3</span> Volume > 1.5x Avg</div>
+      <div class="sig-pill"><span class="sig-pill-pts">+3</span> Breakout at Day High</div>
+      <div class="sig-pill"><span class="sig-pill-pts">+4</span> LuxAlgo Confluence</div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-left">
+      <span>BreakoutHQ</span> — Alpha Entry Scanner Suite<br>
+      Built for NDX100 day trading · Not financial advice · Use at your own risk
+    </div>
+    <div class="footer-right">
+      <div class="footer-badge">NDX100</div>
+      <div class="footer-badge">Yahoo Finance</div>
+      <div class="footer-badge">Telegram</div>
+      <div class="footer-badge" style="border-color:var(--cyan);color:var(--cyan)">v13.23 Latest</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── CLOCK + MARKET STATUS ──
+function updateClock() {
+  const now = new Date();
+  const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const h = et.getHours(), m = et.getMinutes(), dow = et.getDay();
+  const mins = h * 60 + m;
+  const isWeekday = dow >= 1 && dow <= 5;
+  const isOpen = isWeekday && mins >= 570 && mins < 960;
+  const isPreMkt = isWeekday && mins >= 240 && mins < 570;
+
+  document.getElementById('mktTime').textContent =
+    now.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit', timeZone:'America/New_York' }) + ' ET';
+  document.getElementById('mktLbl').textContent =
+    isOpen ? 'MARKET OPEN' : isPreMkt ? 'PRE-MARKET' : 'MARKET CLOSED';
+  document.getElementById('mktLbl').style.color =
+    isOpen ? 'var(--green)' : isPreMkt ? 'var(--gold)' : 'var(--dim)';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── TICKER TAPE (static NDX100 names with fake but plausible data) ──
+const tickers = [
+  {t:'NVDA',p:'+2.4%',up:true},{t:'AAPL',p:'-0.3%',up:false},{t:'MSFT',p:'+0.8%',up:true},
+  {t:'META',p:'+1.6%',up:true},{t:'GOOGL',p:'-0.1%',up:false},{t:'AMZN',p:'+0.5%',up:true},
+  {t:'TSLA',p:'-1.2%',up:false},{t:'MU',p:'+3.1%',up:true},{t:'KLAC',p:'+1.8%',up:true},
+  {t:'CRWD',p:'+0.9%',up:true},{t:'MRVL',p:'-0.4%',up:false},{t:'APP',p:'+2.2%',up:true},
+  {t:'CEG',p:'+1.4%',up:true},{t:'ADSK',p:'-0.7%',up:false},{t:'LRCX',p:'+1.1%',up:true},
+  {t:'PLTR',p:'+1.9%',up:true},{t:'PANW',p:'+0.6%',up:true},{t:'ODFL',p:'+1.5%',up:true},
+  {t:'AMD',p:'-0.8%',up:false},{t:'AVGO',p:'+0.4%',up:true},{t:'COST',p:'+0.2%',up:true},
+  {t:'NFLX',p:'+0.7%',up:true},{t:'MSTR',p:'-2.1%',up:false},{t:'ISRG',p:'+0.3%',up:true},
+];
+// Duplicate for seamless loop
+const items = [...tickers, ...tickers];
+const tape = document.getElementById('tape');
+tape.innerHTML = items.map(t =>
+  `<div class="tape-item">
+    <span class="ticker">${t.t}</span>&nbsp;
+    <span class="${t.up?'up':'down'}">${t.p}</span>
+  </div>`
+).join('');
+</script>
+</body>
+</html>
