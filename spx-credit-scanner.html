@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPX Credit Spread Scanner</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #080c10;
+    --surface: #0d1117;
+    --surface2: #131920;
+    --border: #1e2d3d;
+    --bull: #00ff88;
+    --bear: #ff3b5c;
+    --neutral: #6b8aaa;
+    --gold: #f5a623;
+    --text: #e2eaf4;
+    --text-dim: #4a6275;
+    --accent: #0ea5e9;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,255,136,0.01) 2px,
+      rgba(0,255,136,0.01) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: var(--bull);
+    text-transform: uppercase;
+  }
+
+  .logo span { color: var(--bear); }
+
+  #clock {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--neutral);
+  }
+
+  .status-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--bull);
+    box-shadow: 0 0 8px var(--bull);
+    animation: pulse 1.5s infinite;
+    margin-right: 6px;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .main {
+    padding: 16px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  /* SPX Price Bar */
+  .spx-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .spx-bar::before {
+    content: 'SPX';
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 48px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.03);
+    letter-spacing: -2px;
+  }
+
+  .spx-price {
+    font-family: 'Space Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -1px;
+  }
+
+  .spx-change {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  .spx-meta {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .meta-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .meta-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+  }
+
+  /* Signal Card */
+  .signal-card {
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    border: 1px solid;
+    position: relative;
+    overflow: hidden;
+    animation: slideIn 0.4s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .signal-card.bull {
+    background: linear-gradient(135deg, rgba(0,255,136,0.06) 0%, transparent 60%);
+    border-color: rgba(0,255,136,0.25);
+  }
+
+  .signal-card.bear {
+    background: linear-gradient(135deg, rgba(255,59,92,0.06) 0%, transparent 60%);
+    border-color: rgba(255,59,92,0.25);
+  }
+
+  .signal-card.neutral {
+    background: var(--surface);
+    border-color: var(--border);
+  }
+
+  .signal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .signal-type {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 4px;
+  }
+
+  .bull .signal-type { background: rgba(0,255,136,0.15); color: var(--bull); }
+  .bear .signal-type { background: rgba(255,59,92,0.15); color: var(--bear); }
+  .neutral .signal-type { background: rgba(107,138,170,0.15); color: var(--neutral); }
+
+  .signal-grade {
+    font-family: 'Space Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .bull .signal-grade { color: var(--bull); }
+  .bear .signal-grade { color: var(--bear); }
+
+  .signal-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .signal-desc {
+    font-size: 12px;
+    color: var(--neutral);
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+
+  /* Trade Setup Box */
+  .trade-box {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 8px;
+  }
+
+  .trade-box-title {
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  .trade-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 7px;
+    font-size: 12px;
+  }
+
+  .trade-row:last-child { margin-bottom: 0; }
+
+  .trade-label { color: var(--text-dim); font-size: 11px; }
+  .trade-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .bull .trade-val.highlight { color: var(--bull); }
+  .bear .trade-val.highlight { color: var(--bear); }
+
+  /* Indicators row */
+  .indicators {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .ind-pill {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+
+  .ind-name {
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .ind-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .ind-val.bull { color: var(--bull); }
+  .ind-val.bear { color: var(--bear); }
+  .ind-val.neutral { color: var(--neutral); }
+  .ind-val.gold { color: var(--gold); }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+    box-shadow: 0 0 16px rgba(14,165,233,0.3);
+  }
+
+  .btn-scan {
+    background: var(--bull);
+    border-color: var(--bull);
+    color: #000;
+    font-weight: 800;
+  }
+
+  .btn-scan:hover {
+    background: #00cc6e;
+    border-color: #00cc6e;
+    color: #000;
+    box-shadow: 0 0 20px rgba(0,255,136,0.4);
+  }
+
+  /* Section title */
+  .section-title {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  /* UT Bot bars viz */
+  .utbot-viz {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .utbot-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 60px;
+    margin-top: 10px;
+  }
+
+  .utbot-bar {
+    flex: 1;
+    border-radius: 2px 2px 0 0;
+    transition: height 0.5s ease;
+    min-height: 4px;
+  }
+
+  /* Settings panel */
+  .settings {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .setting-row:last-child { margin-bottom: 0; }
+
+  .setting-label {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .setting-input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    padding: 6px 10px;
+    width: 80px;
+    text-align: right;
+  }
+
+  .setting-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  /* Loading state */
+  .loading {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-dim);
+    font-size: 12px;
+    letter-spacing: 2px;
+  }
+
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--bull);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Trend regime banner */
+  .regime-banner {
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .regime-banner.bearish {
+    background: rgba(255,59,92,0.1);
+    border: 1px solid rgba(255,59,92,0.3);
+    color: var(--bear);
+  }
+
+  .regime-banner.bullish {
+    background: rgba(0,255,136,0.1);
+    border: 1px solid rgba(0,255,136,0.3);
+    color: var(--bull);
+  }
+
+  .regime-banner.neutral {
+    background: rgba(107,138,170,0.1);
+    border: 1px solid rgba(107,138,170,0.3);
+    color: var(--neutral);
+  }
+
+  .alert-log {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+
+  .log-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(30,45,61,0.5);
+    font-size: 11px;
+  }
+
+  .log-item:last-child { border-bottom: none; }
+
+  .log-time {
+    font-family: 'Space Mono', monospace;
+    color: var(--text-dim);
+    font-size: 10px;
+    min-width: 45px;
+  }
+
+  .log-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .log-dot.bull { background: var(--bull); }
+  .log-dot.bear { background: var(--bear); }
+
+  /* Telegram Panel */
+  .tg-panel {
+    background: var(--surface);
+    border: 1px solid #1e3a5f;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    position: relative;
+  }
+
+  .tg-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background: radial-gradient(ellipse at top left, rgba(41,182,246,0.04) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .tg-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .tg-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  .tg-badge.off { background: rgba(107,138,170,0.15); color: var(--text-dim); }
+  .tg-badge.on { background: rgba(41,182,246,0.2); color: #29b6f6; box-shadow: 0 0 8px rgba(41,182,246,0.3); }
+
+  .tg-toggle {
+    background: transparent;
+    border: 1px solid #1e3a5f;
+    color: #29b6f6;
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tg-toggle:hover, .tg-toggle.active {
+    background: rgba(41,182,246,0.15);
+    border-color: #29b6f6;
+  }
+
+  .tg-fields { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+
+  .tg-field-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tg-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    min-width: 80px;
+    letter-spacing: 0.5px;
+  }
+
+  .tg-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 7px 10px;
+  }
+
+  .tg-input:focus { outline: none; border-color: #29b6f6; }
+
+  .tg-eye {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px;
+    opacity: 0.6;
+  }
+
+  .tg-eye:hover { opacity: 1; }
+
+  .tg-test-btn {
+    width: 100%;
+    padding: 10px;
+    background: rgba(41,182,246,0.08);
+    border: 1px dashed #1e3a5f;
+    border-radius: 8px;
+    color: #29b6f6;
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tg-test-btn:hover {
+    background: rgba(41,182,246,0.15);
+    border-color: #29b6f6;
+  }
+
+  .no-signal {
+    text-align: center;
+    padding: 30px;
+    color: var(--text-dim);
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+
+  .tag {
+    display: inline-block;
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  .tag.ut { background: rgba(245,166,35,0.15); color: var(--gold); }
+  .tag.vwap { background: rgba(14,165,233,0.15); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">SPX <span>CREDIT</span> SCANNER</div>
+  <div id="clock"><span class="status-dot"></span>--:--:-- ET</div>
+</header>
+
+<div class="main">
+
+  <!-- SPX Price Bar -->
+  <div class="spx-bar" id="spxBar">
+    <div class="spx-price" id="spxPrice">Loading...</div>
+    <div class="spx-change" id="spxChange">—</div>
+    <div class="spx-meta">
+      <div class="meta-item">
+        <div class="meta-label">VWAP</div>
+        <div class="meta-val" id="vwapVal">—</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">SMA 20</div>
+        <div class="meta-val" id="sma20Val">—</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">SMA 200</div>
+        <div class="meta-val" id="sma200Val">—</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">ATR</div>
+        <div class="meta-val" id="atrVal">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn btn-scan" id="scanBtn" onclick="runScan()">⟳ SCAN NOW</button>
+    <button class="btn" id="autoBtn" onclick="toggleAuto()">AUTO OFF</button>
+  </div>
+
+  <!-- Settings -->
+  <div class="settings">
+    <div class="section-title">UT BOT SETTINGS</div>
+    <div class="setting-row">
+      <span class="setting-label">Key Value (Sensitivity)</span>
+      <input class="setting-input" id="keyVal" type="number" value="1" min="1" max="5" step="0.5">
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">ATR Period</span>
+      <input class="setting-input" id="atrPeriod" type="number" value="10" min="5" max="20">
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Min Signal Grade</span>
+      <select class="setting-input" id="minGrade" style="width:80px">
+        <option value="A+">A+</option>
+        <option value="A" selected>A</option>
+        <option value="B">B</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Wing Width (pts)</span>
+      <input class="setting-input" id="wingWidth" type="number" value="25" min="10" max="100" step="5">
+    </div>
+  </div>
+
+  <!-- Regime Banner -->
+  <div class="regime-banner neutral" id="regimeBanner">
+    <span>◈</span> <span id="regimeText">AWAITING SCAN...</span>
+  </div>
+
+  <!-- Indicator Pills -->
+  <div class="indicators">
+    <div class="ind-pill">
+      <div class="ind-name">UT BOT</div>
+      <div class="ind-val neutral" id="utbotPill">—</div>
+    </div>
+    <div class="ind-pill">
+      <div class="ind-name">vs VWAP</div>
+      <div class="ind-val neutral" id="vwapPill">—</div>
+    </div>
+    <div class="ind-pill">
+      <div class="ind-name">RSI</div>
+      <div class="ind-val neutral" id="rsiPill">—</div>
+    </div>
+    <div class="ind-pill">
+      <div class="ind-name">TREND</div>
+      <div class="ind-val neutral" id="trendPill">—</div>
+    </div>
+  </div>
+
+  <!-- Signal Cards -->
+  <div class="section-title">TRADE SIGNAL</div>
+  <div id="signalArea">
+    <div class="no-signal">Hit SCAN NOW to analyze SPX conditions</div>
+  </div>
+
+  <!-- Telegram Config -->
+  <div class="tg-panel" id="tgPanel">
+    <div class="tg-header">
+      <div style="display:flex;align-items:center;gap:8px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8l-1.7 8c-.12.56-.46.7-.93.44l-2.57-1.9-1.24 1.2c-.14.13-.26.25-.52.25l.18-2.6 4.72-4.27c.2-.18-.04-.28-.32-.1L7.58 15.4 5.05 14.6c-.55-.17-.56-.55.12-.82l9.56-3.68c.46-.17.86.11.91.7z" fill="#29b6f6"/></svg>
+        <span style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase">Telegram Alerts</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span id="tgStatus" class="tg-badge off">OFF</span>
+        <button class="tg-toggle" id="tgToggle" onclick="toggleTelegram()">Enable</button>
+      </div>
+    </div>
+
+    <div class="tg-fields">
+      <div class="tg-field-row">
+        <label class="tg-label">Bot Token</label>
+        <input class="tg-input" id="tgToken" type="password" placeholder="Your bot token" value="">
+        <button class="tg-eye" onclick="toggleTokenVis()" title="Show/hide">👁</button>
+      </div>
+      <div class="tg-field-row">
+        <label class="tg-label">Chat ID</label>
+        <input class="tg-input" id="tgChatId" type="text" placeholder="Chat ID" value="1026720092">
+      </div>
+      <div class="tg-field-row">
+        <label class="tg-label">Alert on grades</label>
+        <select class="tg-input" id="tgMinGrade" style="width:100%">
+          <option value="A+">A+ only</option>
+          <option value="A" selected>A and above</option>
+          <option value="B">B and above</option>
+        </select>
+      </div>
+      <div class="tg-field-row" style="justify-content:space-between;align-items:center">
+        <label class="tg-label">Cooldown (mins)</label>
+        <input class="tg-input" id="tgCooldown" type="number" value="5" min="1" max="60" style="width:70px;text-align:right">
+      </div>
+    </div>
+
+    <button class="tg-test-btn" onclick="sendTestAlert()">📨 Send Test Alert</button>
+    <div id="tgFeedback" style="font-size:10px;color:var(--text-dim);margin-top:8px;min-height:14px;text-align:center"></div>
+  </div>
+
+  <!-- Alert Log -->
+  <div style="margin-top:16px">
+    <div class="section-title">SIGNAL LOG</div>
+    <div class="alert-log" id="alertLog">
+      <div class="log-item" style="color:var(--text-dim);font-size:11px;justify-content:center">No signals yet this session</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────
+const state = {
+  price: null,
+  prevPrice: null,
+  open: null,
+  high: null,
+  low: null,
+  closes: [],
+  vwap: null,
+  sma20: null,
+  sma200: null,
+  atr: null,
+  rsi: null,
+  utBotSignal: null,
+  utBotTrailStop: null,
+  autoMode: false,
+  autoInterval: null,
+  lastSignalTime: null,
+  signals: [],
+  lastAlert: null,
+  utBotBars: [],
+  // Telegram
+  tgEnabled: false,
+  tgLastAlertKey: null,  // prevents duplicate alerts same signal
+  tgLastAlertTime: 0
+};
+
+// ─── Telegram ─────────────────────────────────────────────
+function toggleTokenVis() {
+  const inp = document.getElementById('tgToken');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function toggleTelegram() {
+  const token = document.getElementById('tgToken').value.trim();
+  const chatId = document.getElementById('tgChatId').value.trim();
+
+  if (!state.tgEnabled) {
+    if (!token) {
+      setTgFeedback('⚠️ Enter your bot token first', 'var(--gold)');
+      return;
+    }
+    if (!chatId) {
+      setTgFeedback('⚠️ Enter chat ID', 'var(--gold)');
+      return;
+    }
+    state.tgEnabled = true;
+    document.getElementById('tgStatus').textContent = 'ON';
+    document.getElementById('tgStatus').className = 'tg-badge on';
+    document.getElementById('tgToggle').textContent = 'Disable';
+    document.getElementById('tgToggle').classList.add('active');
+    setTgFeedback('✅ Telegram alerts active', 'var(--bull)');
+  } else {
+    state.tgEnabled = false;
+    document.getElementById('tgStatus').textContent = 'OFF';
+    document.getElementById('tgStatus').className = 'tg-badge off';
+    document.getElementById('tgToggle').textContent = 'Enable';
+    document.getElementById('tgToggle').classList.remove('active');
+    setTgFeedback('Telegram alerts disabled', 'var(--text-dim)');
+  }
+}
+
+function setTgFeedback(msg, color) {
+  const el = document.getElementById('tgFeedback');
+  el.textContent = msg;
+  el.style.color = color || 'var(--text-dim)';
+  setTimeout(() => { el.textContent = ''; }, 5000);
+}
+
+async function sendTelegram(message) {
+  const token = document.getElementById('tgToken').value.trim();
+  const chatId = document.getElementById('tgChatId').value.trim();
+  if (!token || !chatId) return false;
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML'
+      })
+    });
+    const data = await res.json();
+    return data.ok === true;
+  } catch (e) {
+    console.error('Telegram error:', e);
+    return false;
+  }
+}
+
+async function sendTestAlert() {
+  const token = document.getElementById('tgToken').value.trim();
+  const chatId = document.getElementById('tgChatId').value.trim();
+  if (!token) { setTgFeedback('⚠️ Enter bot token first', 'var(--gold)'); return; }
+  if (!chatId) { setTgFeedback('⚠️ Enter chat ID first', 'var(--gold)'); return; }
+
+  setTgFeedback('Sending test...', 'var(--accent)');
+  const now = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false });
+
+  const msg =
+`🧪 <b>SPX CREDIT SCANNER — TEST</b>
+
+✅ Connection confirmed!
+🕐 Time: ${now} ET
+
+Your scanner is ready to send live alerts.
+<i>— @Breakouthq_bot</i>`;
+
+  const ok = await sendTelegram(msg);
+  if (ok) {
+    setTgFeedback('✅ Test sent! Check Telegram.', 'var(--bull)');
+  } else {
+    setTgFeedback('❌ Failed — check token/chat ID', 'var(--bear)');
+  }
+}
+
+function buildTelegramMessage(result, trade, data, utResult) {
+  const dir = result.direction;
+  const emoji = dir === 'BULL' ? '🟢' : '🔴';
+  const now = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false });
+  const conf = Math.round(result.confidence * 100);
+  const vwapDir = data.price > data.vwap ? 'ABOVE' : 'BELOW';
+  const utSig = utResult.signal || (data.price > utResult.trailStop ? 'ABOVE TRAIL' : 'BELOW TRAIL');
+
+  let tradeLines = '';
+  if (trade) {
+    tradeLines = `
+📋 <b>TRADE SETUP</b>
+├ Strategy: <b>${trade.type}</b>
+├ Sell: <b>${trade.sell}</b>  Buy: <b>${trade.buy}</b>
+├ Credit: <b>${trade.credit}/contract</b>
+├ Max Risk: <b>${trade.maxRisk}</b>
+└ Breakeven: <b>${trade.breakeven}</b>`;
+  }
+
+  const reasons = result.reasons.slice(0, 3).map(r => `  ${r}`).join('\n');
+
+  return `${emoji} <b>SPX CREDIT SPREAD — ${dir} ${result.grade}</b>
+
+🕐 ${now} ET  |  Confidence: ${conf}%
+💰 SPX: <b>${data.price.toFixed(2)}</b>  VWAP: ${vwapDir}
+📊 UT Bot: <b>${utSig}</b>  RSI: ${data.rsi ? data.rsi.toFixed(0) : '—'}
+${tradeLines}
+
+<b>Why:</b>
+${reasons}
+
+<i>SPX Credit Scanner — @Breakouthq_bot</i>`;
+}
+
+async function maybeSendTgAlert(result, trade, data, utResult) {
+  if (!state.tgEnabled) return;
+  if (result.direction === 'NEUTRAL') return;
+
+  const gradeOrder = { 'A+': 4, 'A': 3, 'B': 2, 'WATCH': 1 };
+  const minGrade = document.getElementById('tgMinGrade').value;
+  if (gradeOrder[result.grade] < gradeOrder[minGrade]) return;
+
+  const cooldownMs = (parseInt(document.getElementById('tgCooldown').value) || 5) * 60 * 1000;
+  const alertKey = `${result.direction}-${result.grade}-${Math.round(data.price / 10)}`;
+  const now = Date.now();
+
+  // Dedupe: same direction+grade within cooldown window
+  if (alertKey === state.tgLastAlertKey && (now - state.tgLastAlertTime) < cooldownMs) return;
+
+  const msg = buildTelegramMessage(result, trade, data, utResult);
+  const ok = await sendTelegram(msg);
+
+  if (ok) {
+    state.tgLastAlertKey = alertKey;
+    state.tgLastAlertTime = now;
+    setTgFeedback(`📨 Alert sent — ${result.direction} ${result.grade} @ ${data.price.toFixed(0)}`, 'var(--bull)');
+  } else {
+    setTgFeedback('❌ Alert failed to send', 'var(--bear)');
+  }
+}
+
+// ─── Clock ───────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const et = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  }).format(now);
+  document.getElementById('clock').innerHTML = `<span class="status-dot"></span>${et} ET`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── Indicators ──────────────────────────────────────────
+function calcSMA(arr, period) {
+  if (arr.length < period) return null;
+  const slice = arr.slice(-period);
+  return slice.reduce((a, b) => a + b, 0) / period;
+}
+
+function calcEMA(arr, period) {
+  if (arr.length < period) return null;
+  const k = 2 / (period + 1);
+  let ema = arr.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < arr.length; i++) {
+    ema = arr[i] * k + ema * (1 - k);
+  }
+  return ema;
+}
+
+function calcRSI(closes, period = 14) {
+  if (closes.length < period + 1) return null;
+  const slice = closes.slice(-period - 1);
+  let gains = 0, losses = 0;
+  for (let i = 1; i < slice.length; i++) {
+    const diff = slice[i] - slice[i - 1];
+    if (diff > 0) gains += diff;
+    else losses += Math.abs(diff);
+  }
+  const avgGain = gains / period;
+  const avgLoss = losses / period;
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
+}
+
+function calcATR(highs, lows, closes, period) {
+  if (highs.length < period + 1) return null;
+  const trs = [];
+  for (let i = 1; i < highs.length; i++) {
+    const tr = Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1])
+    );
+    trs.push(tr);
+  }
+  return calcSMA(trs, period);
+}
+
+// ─── UT Bot Logic ─────────────────────────────────────────
+// Classic UT Bot: Trail stop based on ATR * KeyValue
+// Signal = BUY when price crosses above trail stop
+// Signal = SELL when price crosses below trail stop
+function calcUTBot(closes, highs, lows, keyVal, atrPeriod) {
+  if (closes.length < atrPeriod + 5) return { signal: null, trailStop: null, bars: [] };
+
+  const results = [];
+  let trailStop = 0;
+  let pos = 0; // 1 = long above, -1 = short below
+
+  for (let i = atrPeriod; i < closes.length; i++) {
+    const slice_c = closes.slice(0, i + 1);
+    const slice_h = highs.slice(0, i + 1);
+    const slice_l = lows.slice(0, i + 1);
+    const atr = calcATR(slice_h, slice_l, slice_c, atrPeriod);
+    if (!atr) continue;
+
+    const nLoss = keyVal * atr;
+    const c = closes[i];
+    const prevC = closes[i - 1];
+
+    let newTrail;
+    if (c > trailStop) {
+      newTrail = Math.max(trailStop, c - nLoss);
+    } else if (c < trailStop) {
+      newTrail = Math.min(trailStop, c + nLoss);
+    } else {
+      newTrail = c - nLoss;
+    }
+    trailStop = newTrail;
+
+    // Cross detection
+    let sig = null;
+    if (prevC < trailStop && c > trailStop) sig = 'BUY';
+    if (prevC > trailStop && c < trailStop) sig = 'SELL';
+
+    results.push({ c, trailStop, sig });
+  }
+
+  if (results.length === 0) return { signal: null, trailStop: null, bars: [] };
+
+  // Most recent signal in last 3 bars
+  let signal = null;
+  for (let i = results.length - 1; i >= Math.max(0, results.length - 3); i--) {
+    if (results[i].sig) { signal = results[i].sig; break; }
+  }
+
+  return {
+    signal,
+    trailStop: results[results.length - 1].trailStop,
+    bars: results.slice(-20).map(r => ({
+      close: r.c,
+      trail: r.trailStop,
+      above: r.c > r.trail
+    }))
+  };
+}
+
+// ─── VWAP calc (approximate from available data) ──────────
+function approxVWAP(open, high, low, close, prevVWAP) {
+  // Typical price weighted
+  const tp = (high + low + close) / 3;
+  return prevVWAP ? (prevVWAP * 0.85 + tp * 0.15) : tp;
+}
+
+// ─── Fetch SPX Data (Yahoo Finance via Cloudflare proxy) ──
+async function fetchSPX() {
+  const PROXY = 'https://yahoo-proxy.srimanthgada87.workers.dev';
+  const yahooUrl = encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?interval=5m&range=2d');
+  const url = `${PROXY}?url=${yahooUrl}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Proxy fetch failed');
+  const json = await res.json();
+
+  const q = json?.chart?.result?.[0];
+  if (!q) throw new Error('No data');
+
+  const meta = q.meta;
+  const timestamps = q.timestamp || [];
+  const ohlcv = q.indicators?.quote?.[0] || {};
+
+  const opens = ohlcv.open || [];
+  const highs = ohlcv.high || [];
+  const lows = ohlcv.low || [];
+  const closes = ohlcv.close || [];
+  const vols = ohlcv.volume || [];
+
+  // Filter valid candles
+  const valid = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (closes[i] != null && highs[i] != null && lows[i] != null && opens[i] != null) {
+      valid.push({ o: opens[i], h: highs[i], l: lows[i], c: closes[i], v: vols[i] || 0, t: timestamps[i] });
+    }
+  }
+
+  if (valid.length < 20) throw new Error('Not enough candles');
+
+  // Today's candles for VWAP
+  const now = new Date();
+  const etMidnight = new Date(now.toLocaleDateString('en-US', { timeZone: 'America/New_York' }));
+  const todayStart = etMidnight.getTime() / 1000;
+  const todayCandles = valid.filter(c => c.t >= todayStart);
+
+  // VWAP calc
+  let cumTPV = 0, cumVol = 0;
+  for (const c of todayCandles) {
+    const tp = (c.h + c.l + c.c) / 3;
+    cumTPV += tp * c.v;
+    cumVol += c.v;
+  }
+  const vwap = cumVol > 0 ? cumTPV / cumVol : valid[valid.length - 1].c;
+
+  const allCloses = valid.map(v => v.c);
+  const allHighs = valid.map(v => v.h);
+  const allLows = valid.map(v => v.l);
+
+  return {
+    price: valid[valid.length - 1].c,
+    open: todayCandles[0]?.o || valid[0].o,
+    high: Math.max(...todayCandles.map(c => c.h)),
+    low: Math.min(...todayCandles.map(c => c.l)),
+    closes: allCloses,
+    highs: allHighs,
+    lows: allLows,
+    vwap,
+    prevClose: meta.chartPreviousClose || allCloses[allCloses.length - 2]
+  };
+}
+
+// ─── Scoring & Signal Logic ───────────────────────────────
+function scoreSignal(data, utResult) {
+  const { price, vwap, sma20, sma200, rsi, atr } = data;
+  const { signal: utSig, trailStop } = utResult;
+
+  let bullScore = 0, bearScore = 0;
+  const reasons = [];
+
+  // 1. UT Bot primary signal
+  if (utSig === 'BUY') { bullScore += 40; reasons.push('🟢 UT Bot BUY cross'); }
+  if (utSig === 'SELL') { bearScore += 40; reasons.push('🔴 UT Bot SELL cross'); }
+
+  // 2. Price vs VWAP (strong filter)
+  if (price > vwap) { bullScore += 20; reasons.push('🟢 Price above VWAP'); }
+  else { bearScore += 20; reasons.push('🔴 Price below VWAP'); }
+
+  // 3. Price vs SMA20
+  if (sma20) {
+    if (price > sma20) { bullScore += 15; reasons.push('🟢 Price above SMA20'); }
+    else { bearScore += 15; reasons.push('🔴 Price below SMA20'); }
+  }
+
+  // 4. Price vs SMA200
+  if (sma200) {
+    if (price > sma200) { bullScore += 10; }
+    else { bearScore += 10; reasons.push('🔴 Price below SMA200 (bearish macro)'); }
+  }
+
+  // 5. RSI
+  if (rsi) {
+    if (rsi < 35) { bullScore += 15; reasons.push('🟢 RSI oversold – reversal setup'); }
+    else if (rsi > 65) { bearScore += 15; reasons.push('🔴 RSI overbought – fade setup'); }
+    else if (rsi < 50) bearScore += 5;
+    else bullScore += 5;
+  }
+
+  // 6. Intraday direction
+  const dayBias = price > data.open;
+  if (dayBias) bullScore += 5; else bearScore += 5;
+
+  const total = bullScore + bearScore;
+  const bullPct = total > 0 ? bullScore / total : 0.5;
+
+  let direction, grade, confidence;
+  if (bullPct >= 0.72) { direction = 'BULL'; confidence = bullPct; }
+  else if (bullPct <= 0.38) { direction = 'BEAR'; confidence = 1 - bullPct; }
+  else { direction = 'NEUTRAL'; confidence = 0.5; }
+
+  if (confidence >= 0.85) grade = 'A+';
+  else if (confidence >= 0.72) grade = 'A';
+  else if (confidence >= 0.6) grade = 'B';
+  else grade = 'WATCH';
+
+  return { direction, grade, confidence, bullScore, bearScore, reasons };
+}
+
+function buildTradeSetup(price, direction, atr, wingWidth) {
+  const wing = wingWidth || 25;
+
+  if (direction === 'BULL') {
+    // Bull Put Spread: Sell put below market, buy put further below
+    const shortStrike = Math.round((price - atr * 0.5) / 5) * 5; // ~0.5 ATR below
+    const longStrike = shortStrike - wing;
+    const credit = (wing * 0.18).toFixed(2); // rough credit estimate
+    const maxRisk = (wing - credit).toFixed(2);
+    const rr = (credit / maxRisk).toFixed(2);
+    return {
+      type: 'BULL PUT SPREAD',
+      action: 'SELL PUT / BUY PUT',
+      sell: shortStrike,
+      buy: longStrike,
+      credit: `$${credit}`,
+      maxRisk: `$${maxRisk}`,
+      rr,
+      breakeven: shortStrike - parseFloat(credit),
+      note: `Profit if SPX stays above ${shortStrike} at expiry`
+    };
+  } else if (direction === 'BEAR') {
+    // Bear Call Spread: Sell call above market, buy call further above
+    const shortStrike = Math.round((price + atr * 0.5) / 5) * 5;
+    const longStrike = shortStrike + wing;
+    const credit = (wing * 0.18).toFixed(2);
+    const maxRisk = (wing - credit).toFixed(2);
+    const rr = (credit / maxRisk).toFixed(2);
+    return {
+      type: 'BEAR CALL SPREAD',
+      action: 'SELL CALL / BUY CALL',
+      sell: shortStrike,
+      buy: longStrike,
+      credit: `$${credit}`,
+      maxRisk: `$${maxRisk}`,
+      rr,
+      breakeven: shortStrike + parseFloat(credit),
+      note: `Profit if SPX stays below ${shortStrike} at expiry`
+    };
+  }
+  return null;
+}
+
+// ─── Render ───────────────────────────────────────────────
+function renderSignal(result, trade, data, utResult) {
+  const area = document.getElementById('signalArea');
+  const gradeFilter = document.getElementById('minGrade').value;
+  const gradeOrder = { 'A+': 4, 'A': 3, 'B': 2, 'WATCH': 1 };
+
+  if (result.direction === 'NEUTRAL') {
+    area.innerHTML = `<div class="signal-card neutral">
+      <div class="signal-header">
+        <span class="signal-type">NEUTRAL</span>
+        <span class="signal-grade" style="color:var(--neutral)">—</span>
+      </div>
+      <div class="signal-title">No Clear Setup</div>
+      <div class="signal-desc">UT Bot and indicators not aligned. Wait for a cleaner signal — don't force a trade.</div>
+    </div>`;
+    return;
+  }
+
+  if (gradeOrder[result.grade] < gradeOrder[gradeFilter]) {
+    area.innerHTML = `<div class="signal-card neutral">
+      <div class="signal-title">Signal Below Grade Threshold</div>
+      <div class="signal-desc">Grade ${result.grade} — below your minimum ${gradeFilter}. Patience pays.</div>
+    </div>`;
+    return;
+  }
+
+  const cls = result.direction === 'BULL' ? 'bull' : 'bear';
+  const emoji = result.direction === 'BULL' ? '🟢' : '🔴';
+  const conf = Math.round(result.confidence * 100);
+
+  let tradeHTML = '';
+  if (trade) {
+    tradeHTML = `
+    <div class="trade-box">
+      <div class="trade-box-title">RECOMMENDED TRADE</div>
+      <div class="trade-row"><span class="trade-label">Strategy</span><span class="trade-val highlight">${trade.type}</span></div>
+      <div class="trade-row"><span class="trade-label">Action</span><span class="trade-val">${trade.action}</span></div>
+      <div class="trade-row"><span class="trade-label">Sell Strike</span><span class="trade-val highlight">${trade.sell}</span></div>
+      <div class="trade-row"><span class="trade-label">Buy Strike</span><span class="trade-val">${trade.buy}</span></div>
+      <div class="trade-row"><span class="trade-label">Est. Credit</span><span class="trade-val highlight">${trade.credit} / contract</span></div>
+      <div class="trade-row"><span class="trade-label">Max Risk</span><span class="trade-val">${trade.maxRisk}</span></div>
+      <div class="trade-row"><span class="trade-label">R:R</span><span class="trade-val">${trade.rr}x</span></div>
+      <div class="trade-row"><span class="trade-label">Breakeven</span><span class="trade-val">${trade.breakeven}</span></div>
+      <div style="margin-top:8px;font-size:10px;color:var(--text-dim);line-height:1.5">${trade.note}</div>
+    </div>`;
+  }
+
+  const reasonsHTML = result.reasons.slice(0, 4).map(r =>
+    `<div style="font-size:11px;color:var(--neutral);margin-bottom:3px">${r}</div>`
+  ).join('');
+
+  const utTag = utResult.signal ? `<span class="tag ut">UT ${utResult.signal}</span>` : '';
+  const vwapDir = data.price > data.vwap ? 'ABOVE' : 'BELOW';
+  const vwapTag = `<span class="tag vwap">VWAP ${vwapDir}</span>`;
+
+  area.innerHTML = `<div class="signal-card ${cls}">
+    <div class="signal-header">
+      <span class="signal-type">${result.direction} SETUP</span>
+      <span class="signal-grade">${result.grade}</span>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">${utTag}${vwapTag}</div>
+    <div class="signal-title">${result.direction === 'BULL' ? 'Bull Put Spread Opportunity' : 'Bear Call Spread Opportunity'}</div>
+    <div class="signal-desc">${conf}% confidence across ${result.bullScore + result.bearScore} indicator points</div>
+    ${reasonsHTML}
+    ${tradeHTML}
+  </div>`;
+}
+
+function renderIndicators(data, utResult) {
+  // UT Bot pill
+  const utEl = document.getElementById('utbotPill');
+  if (utResult.signal === 'BUY') { utEl.textContent = 'BUY'; utEl.className = 'ind-val bull'; }
+  else if (utResult.signal === 'SELL') { utEl.textContent = 'SELL'; utEl.className = 'ind-val bear'; }
+  else { utEl.textContent = data.price > utResult.trailStop ? '▲' : '▼'; utEl.className = data.price > utResult.trailStop ? 'ind-val bull' : 'ind-val bear'; }
+
+  // VWAP pill
+  const vwapEl = document.getElementById('vwapPill');
+  if (data.vwap) {
+    const pct = ((data.price - data.vwap) / data.vwap * 100).toFixed(2);
+    vwapEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
+    vwapEl.className = pct >= 0 ? 'ind-val bull' : 'ind-val bear';
+  }
+
+  // RSI pill
+  const rsiEl = document.getElementById('rsiPill');
+  if (data.rsi) {
+    rsiEl.textContent = data.rsi.toFixed(0);
+    rsiEl.className = data.rsi > 70 ? 'ind-val bear' : data.rsi < 30 ? 'ind-val bull' : 'ind-val gold';
+  }
+
+  // Trend pill
+  const trendEl = document.getElementById('trendPill');
+  if (data.sma20 && data.sma200) {
+    const bull = data.price > data.sma20 && data.sma20 > data.sma200;
+    const bear = data.price < data.sma20 && data.sma20 < data.sma200;
+    trendEl.textContent = bull ? 'BULL' : bear ? 'BEAR' : 'MIXED';
+    trendEl.className = bull ? 'ind-val bull' : bear ? 'ind-val bear' : 'ind-val gold';
+  }
+}
+
+function renderRegimeBanner(result, data) {
+  const banner = document.getElementById('regimeBanner');
+  const txt = document.getElementById('regimeText');
+
+  if (result.direction === 'BEAR') {
+    banner.className = 'regime-banner bearish';
+    txt.textContent = `BEARISH REGIME — Sell calls, fade rallies`;
+  } else if (result.direction === 'BULL') {
+    banner.className = 'regime-banner bullish';
+    txt.textContent = `BULLISH REGIME — Sell puts, buy dips`;
+  } else {
+    banner.className = 'regime-banner neutral';
+    txt.textContent = `MIXED — Wait for cleaner alignment`;
+  }
+}
+
+function addToLog(result, price) {
+  const log = document.getElementById('alertLog');
+  const now = new Date();
+  const time = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  }).format(now);
+
+  if (result.grade === 'WATCH' || result.direction === 'NEUTRAL') return;
+
+  const item = document.createElement('div');
+  item.className = 'log-item';
+  item.innerHTML = `
+    <span class="log-dot ${result.direction === 'BULL' ? 'bull' : 'bear'}"></span>
+    <span class="log-time">${time}</span>
+    <span style="flex:1;font-size:11px">${result.direction === 'BULL' ? 'Bull Put' : 'Bear Call'} ${result.grade} @ ${price.toFixed(0)}</span>
+    <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text-dim)">${Math.round(result.confidence * 100)}%</span>`;
+
+  const firstItem = log.querySelector('.log-item');
+  if (firstItem && firstItem.style.justifyContent === 'center') log.innerHTML = '';
+  log.insertBefore(item, log.firstChild);
+  if (log.children.length > 10) log.removeChild(log.lastChild);
+}
+
+// ─── Main Scan ────────────────────────────────────────────
+async function runScan() {
+  const btn = document.getElementById('scanBtn');
+  btn.textContent = '⟳ SCANNING...';
+  btn.disabled = true;
+
+  try {
+    const raw = await fetchSPX();
+
+    const keyVal = parseFloat(document.getElementById('keyVal').value) || 1;
+    const atrPeriod = parseInt(document.getElementById('atrPeriod').value) || 10;
+    const wingWidth = parseInt(document.getElementById('wingWidth').value) || 25;
+
+    const closes = raw.closes;
+    const highs = raw.highs;
+    const lows = raw.lows;
+
+    const sma20 = calcSMA(closes, 20);
+    const sma200 = calcSMA(closes, 200);
+    const atr = calcATR(highs, lows, closes, atrPeriod);
+    const rsi = calcRSI(closes, 14);
+    const utResult = calcUTBot(closes, highs, lows, keyVal, atrPeriod);
+
+    const data = {
+      price: raw.price,
+      open: raw.open,
+      high: raw.high,
+      low: raw.low,
+      vwap: raw.vwap,
+      sma20,
+      sma200,
+      atr,
+      rsi
+    };
+
+    // Update SPX bar
+    const change = raw.price - raw.prevClose;
+    const changePct = (change / raw.prevClose * 100);
+    const priceEl = document.getElementById('spxPrice');
+    priceEl.textContent = raw.price.toFixed(2);
+    priceEl.style.color = change >= 0 ? 'var(--bull)' : 'var(--bear)';
+
+    const chEl = document.getElementById('spxChange');
+    chEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%)`;
+    chEl.style.color = change >= 0 ? 'var(--bull)' : 'var(--bear)';
+
+    document.getElementById('vwapVal').textContent = raw.vwap ? raw.vwap.toFixed(2) : '—';
+    document.getElementById('sma20Val').textContent = sma20 ? sma20.toFixed(2) : '—';
+    document.getElementById('sma200Val').textContent = sma200 ? sma200.toFixed(2) : '—';
+    document.getElementById('atrVal').textContent = atr ? atr.toFixed(2) : '—';
+
+    const result = scoreSignal(data, utResult);
+    const trade = buildTradeSetup(raw.price, result.direction, atr || 10, wingWidth);
+
+    renderIndicators(data, utResult);
+    renderRegimeBanner(result, data);
+    renderSignal(result, trade, data, utResult);
+    addToLog(result, raw.price);
+    await maybeSendTgAlert(result, trade, data, utResult);
+
+  } catch (e) {
+    console.error('SPX Scan Error:', e);
+    document.getElementById('signalArea').innerHTML = `
+      <div class="signal-card neutral" style="border-color:rgba(245,166,35,0.5)">
+        <div class="signal-title" style="color:var(--gold)">⚠ Live Data Fetch Failed</div>
+        <div class="signal-desc" style="margin-top:6px;color:var(--bear)">${e.message || 'Unknown error'}</div>
+        <div style="margin-top:12px;font-size:10px;color:var(--text-dim);line-height:1.9">
+          <b style="color:var(--text)">Debug steps:</b><br>
+          1. Press <b>F12</b> → Console tab → copy the red error<br>
+          2. Make sure market is open (9:30–4pm ET)<br>
+          3. Test your proxy directly — click link below:<br>
+          <a href="https://yahoo-proxy.srimanthgada87.workers.dev/?symbol=%5EGSPC&interval=5m&range=1d"
+             target="_blank"
+             style="color:var(--accent);font-size:9px;word-break:break-all">
+            ↗ Test Cloudflare Proxy
+          </a>
+        </div>
+      </div>`;
+  } finally {
+    btn.textContent = '⟳ SCAN NOW';
+    btn.disabled = false;
+  }
+}
+
+function renderDemo() {
+  // Demo for when market is closed / proxy unavailable
+  document.getElementById('spxPrice').textContent = '5,580.00';
+  document.getElementById('spxPrice').style.color = 'var(--bear)';
+  document.getElementById('spxChange').textContent = '-32.40 (-0.58%)';
+  document.getElementById('spxChange').style.color = 'var(--bear)';
+  document.getElementById('vwapVal').textContent = '5,598.20';
+  document.getElementById('sma20Val').textContent = '5,612.40';
+  document.getElementById('sma200Val').textContent = '5,490.10';
+  document.getElementById('atrVal').textContent = '18.50';
+
+  document.getElementById('utbotPill').textContent = 'SELL';
+  document.getElementById('utbotPill').className = 'ind-val bear';
+  document.getElementById('vwapPill').textContent = '-0.33%';
+  document.getElementById('vwapPill').className = 'ind-val bear';
+  document.getElementById('rsiPill').textContent = '42';
+  document.getElementById('rsiPill').className = 'ind-val gold';
+  document.getElementById('trendPill').textContent = 'BEAR';
+  document.getElementById('trendPill').className = 'ind-val bear';
+
+  document.getElementById('regimeBanner').className = 'regime-banner bearish';
+  document.getElementById('regimeText').textContent = 'BEARISH REGIME — Sell calls, fade rallies';
+
+  document.getElementById('signalArea').innerHTML = `
+    <div class="signal-card bear">
+      <div class="signal-header">
+        <span class="signal-type">BEAR SETUP</span>
+        <span class="signal-grade">A+</span>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <span class="tag ut">UT SELL</span>
+        <span class="tag vwap">VWAP BELOW</span>
+      </div>
+      <div class="signal-title">Bear Call Spread Opportunity</div>
+      <div class="signal-desc">83% confidence — strong bearish alignment</div>
+      <div style="font-size:11px;color:var(--neutral);margin-bottom:3px">🔴 UT Bot SELL cross</div>
+      <div style="font-size:11px;color:var(--neutral);margin-bottom:3px">🔴 Price below VWAP</div>
+      <div style="font-size:11px;color:var(--neutral);margin-bottom:3px">🔴 Price below SMA20</div>
+      <div style="font-size:11px;color:var(--neutral);margin-bottom:3px">🟢 RSI 42 — room to drop</div>
+      <div class="trade-box">
+        <div class="trade-box-title">RECOMMENDED TRADE</div>
+        <div class="trade-row"><span class="trade-label">Strategy</span><span class="trade-val highlight">BEAR CALL SPREAD</span></div>
+        <div class="trade-row"><span class="trade-label">Action</span><span class="trade-val">SELL CALL / BUY CALL</span></div>
+        <div class="trade-row"><span class="trade-label">Sell Strike</span><span class="trade-val highlight">5590</span></div>
+        <div class="trade-row"><span class="trade-label">Buy Strike</span><span class="trade-val">5615</span></div>
+        <div class="trade-row"><span class="trade-label">Est. Credit</span><span class="trade-val highlight">$4.50 / contract</span></div>
+        <div class="trade-row"><span class="trade-label">Max Risk</span><span class="trade-val">$20.50</span></div>
+        <div class="trade-row"><span class="trade-label">R:R</span><span class="trade-val">0.22x</span></div>
+        <div class="trade-row"><span class="trade-label">Breakeven</span><span class="trade-val">5594.50</span></div>
+        <div style="margin-top:8px;font-size:10px;color:var(--text-dim);line-height:1.5">Profit if SPX stays below 5590 at expiry. Exit if SPX closes above VWAP + 0.3%.</div>
+      </div>
+    </div>`;
+
+  document.getElementById('alertLog').innerHTML = `
+    <div class="log-item">
+      <span class="log-dot bear"></span>
+      <span class="log-time">DEMO</span>
+      <span style="flex:1;font-size:11px">Bear Call A+ @ 5580</span>
+      <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text-dim)">83%</span>
+    </div>`;
+}
+
+// ─── Auto Mode ────────────────────────────────────────────
+function toggleAuto() {
+  const btn = document.getElementById('autoBtn');
+  state.autoMode = !state.autoMode;
+  if (state.autoMode) {
+    btn.textContent = 'AUTO ON';
+    btn.classList.add('active');
+    state.autoInterval = setInterval(runScan, 60000);
+    runScan();
+  } else {
+    btn.textContent = 'AUTO OFF';
+    btn.classList.remove('active');
+    clearInterval(state.autoInterval);
+  }
+}
+
+// Init
+renderDemo();
+</script>
+</body>
+</html>
